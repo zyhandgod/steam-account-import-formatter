@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="将发货文本批量整理成一行一个账号的登号器导入格式。数据仅在浏览器本地处理。" />
+  <title>账号数据整理器</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b1220'/%3E%3Cpath d='M18 20h28M18 32h19M18 44h28' stroke='%232dd4bf' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='47' cy='32' r='5' fill='%23fbbf24'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080d17;
+      --panel: #101827;
+      --panel-2: #141f31;
+      --line: #263349;
+      --text: #f4f7fb;
+      --muted: #92a3ba;
+      --teal: #2dd4bf;
+      --teal-soft: rgba(45, 212, 191, .12);
+      --amber: #fbbf24;
+      --red: #fb7185;
+      --shadow: 0 22px 70px rgba(0, 0, 0, .34);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(45, 212, 191, .1), transparent 28rem),
+        radial-gradient(circle at 100% 18%, rgba(59, 130, 246, .08), transparent 32rem),
+        var(--bg);
+    }
+    button, textarea, input { font: inherit; }
+    button { color: inherit; }
+
+    .shell { width: min(1500px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 42px; }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 7px; color: var(--teal); font-size: .78rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 3vw, 2.55rem); line-height: 1.08; letter-spacing: -.04em; }
+    .lede { margin: 9px 0 0; color: var(--muted); font-size: 1rem; }
+    .privacy { display: flex; align-items: center; gap: 9px; padding: 10px 13px; border: 1px solid rgba(45, 212, 191, .25); border-radius: 999px; color: #b6f7ed; background: var(--teal-soft); white-space: nowrap; font-size: .88rem; }
+    .privacy::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 16px var(--teal); }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+    .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(180deg, rgba(20, 31, 49, .96), rgba(13, 21, 35, .96)); box-shadow: var(--shadow); }
+    .panel-head { min-height: 72px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+    .panel-title { display: flex; align-items: center; gap: 11px; font-weight: 800; }
+    .step { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 9px; color: #061713; background: var(--teal); font-size: .82rem; font-weight: 900; }
+    .panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .btn { min-height: 38px; padding: 0 13px; border: 1px solid var(--line); border-radius: 10px; background: #182439; cursor: pointer; transition: transform .15s ease, border-color .15s ease, background .15s ease; font-weight: 700; }
+    .btn:hover { transform: translateY(-1px); border-color: #40506a; background: #1d2b43; }
+    .btn:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid rgba(45, 212, 191, .28); outline-offset: 2px; }
+    .btn.primary { color: #03221c; background: var(--teal); border-color: var(--teal); }
+    .btn.primary:hover { background: #5eead4; }
+    .btn.ghost { background: transparent; }
+    .btn:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+
+    .editor { width: 100%; min-height: 430px; resize: vertical; display: block; padding: 19px; border: 0; color: #e8eef8; background: #0b1321; line-height: 1.75; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .94rem; }
+    .editor::placeholder { color: #5f7088; }
+    .settings { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-top: 1px solid var(--line); }
+    .check { display: flex; align-items: center; gap: 10px; color: #d9e2ef; cursor: pointer; }
+    .check input { width: 18px; height: 18px; accent-color: var(--teal); }
+    .hint { color: var(--muted); font-size: .82rem; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+    .stat { padding: 13px 16px; background: #101a2a; }
+    .stat b { display: block; font-size: 1.25rem; }
+    .stat span { color: var(--muted); font-size: .78rem; }
+    .stat.bad b { color: var(--red); }
+
+    .results { min-height: 430px; max-height: 545px; overflow: auto; padding: 12px; background: #0b1321; }
+    .empty { min-height: 390px; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 30px; }
+    .empty-icon { width: 58px; height: 58px; margin: 0 auto 15px; display: grid; place-items: center; border: 1px dashed #3b4a61; border-radius: 16px; color: var(--teal); font-size: 1.55rem; }
+    .empty strong { display: block; color: #d9e2ef; margin-bottom: 5px; }
+
+    .record { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 13px 12px; border: 1px solid transparent; border-bottom-color: #1d2a3d; border-radius: 11px; }
+    .record:hover { border-color: #2c3d56; background: #111d2e; }
+    .index { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--teal); background: var(--teal-soft); font-size: .75rem; font-weight: 900; }
+    .record-main { min-width: 0; }
+    .record-top { display: flex; flex-wrap: wrap; gap: 7px 12px; align-items: baseline; }
+    .account { color: #fff; font-family: "SFMono-Regular", Consolas, monospace; font-weight: 800; }
+    .email { color: #8fa3bd; font-family: "SFMono-Regular", Consolas, monospace; font-size: .82rem; overflow-wrap: anywhere; }
+    .record-line { margin-top: 6px; color: #6f819a; font-family: "SFMono-Regular", Consolas, monospace; font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .copy-one { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 9px; background: transparent; cursor: pointer; }
+    .copy-one:hover { border-color: var(--teal); color: var(--teal); }
+    .errors { margin: 12px 0 0; padding: 12px 14px; border: 1px solid rgba(251, 113, 133, .3); border-radius: 11px; color: #fecdd3; background: rgba(251, 113, 133, .08); font-size: .86rem; }
+    .errors ul { margin: 7px 0 0 18px; padding: 0; }
+    .toast { position: fixed; left: 50%; bottom: 24px; z-index: 10; transform: translate(-50%, 20px); padding: 11px 15px; border: 1px solid rgba(45, 212, 191, .35); border-radius: 11px; color: #d6fffa; background: #10241f; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .2s ease; }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    .format-note { margin: 18px 1px 0; color: var(--muted); font-size: .86rem; }
+    code { color: #b8fff4; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 20px, 720px); padding-top: 18px; }
+      header { align-items: flex-start; flex-direction: column; }
+      .workspace { grid-template-columns: 1fr; }
+      .editor { min-height: 320px; }
+      .results { min-height: 300px; max-height: none; }
+      .empty { min-height: 275px; }
+    }
+    @media (max-width: 560px) {
+      .panel-head { align-items: flex-start; flex-direction: column; }
+      .panel-actions { width: 100%; justify-content: flex-start; }
+      .settings { align-items: flex-start; flex-direction: column; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stats .stat:last-child { grid-column: 1 / -1; }
+      .privacy { white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">Local formatter</p>
+        <h1>账号数据整理器</h1>
+        <p class="lede">粘贴整批发货文本，自动拆成一行一个号。</p>
+      </div>
+      <div class="privacy">仅在当前浏览器处理，不上传数据</div>
+    </header>
+
+    <section class="workspace" aria-label="账号数据整理工作区">
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="step">01</span>粘贴原始数据</div>
+          <div class="panel-actions">
+            <button class="btn ghost" id="sampleBtn" type="button">载入示例</button>
+            <button class="btn ghost" id="clearBtn" type="button">清空</button>
+          </div>
+        </div>
+        <textarea class="editor" id="source" spellcheck="false" autocomplete="off" aria-label="原始发货文本" placeholder="支持连续粘贴多条，例如：&#10;&#10;账号test10001密码Abc123456邮箱账号mail10001@example.com邮箱密码778899邮箱地址example.com&#10;账号test10002密码Xyz987654邮箱账号mail10002@example.com邮箱密码112233邮箱地址example.com"></textarea>
+        <div class="settings">
+          <label class="check"><input id="gameIdToggle" type="checkbox" checked />用 Steam 账号名作为游戏ID</label>
+          <span class="hint">自动移除邮箱前的 \@ 转义符</span>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="step">02</span>整理结果</div>
+          <div class="panel-actions">
+            <button class="btn" id="downloadBtn" type="button" disabled>下载 TXT</button>
+            <button class="btn primary" id="copyAllBtn" type="button" disabled>复制全部</button>
+          </div>
+        </div>
+        <div class="stats" aria-live="polite">
+          <div class="stat"><b id="validCount">0</b><span>有效账号</span></div>
+          <div class="stat bad"><b id="errorCount">0</b><span>异常记录</span></div>
+          <div class="stat"><b id="domainCount">0</b><span>邮箱站点</span></div>
+        </div>
+        <div class="results" id="results">
+          <div class="empty"><div><div class="empty-icon">↳</div><strong>等待粘贴数据</strong><span>结果会实时生成，无需点击转换。</span></div></div>
+        </div>
+      </article>
+    </section>
+
+    <p class="format-note">输出格式：<code>账号---密码---邮箱---邮箱密码---游戏ID</code>。关闭游戏ID选项后输出四段格式。</p>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+      const $ = (id) => document.getElementById(id);
+      const source = $("source");
+      const gameIdToggle = $("gameIdToggle");
+      const results = $("results");
+      const copyAllBtn = $("copyAllBtn");
+      const downloadBtn = $("downloadBtn");
+      let current = { records: [], errors: [], output: "" };
+      let toastTimer;
+
+      function normalize(text) {
+        return String(text || "")
+          .replace(/\\@/g, "@")
+          .replace(/[\u200B-\u200D\uFEFF]/g, "")
+          .replace(/\u00A0/g, " ")
+          .trim();
+      }
+
+      function accountStarts(text) {
+        const positions = [];
+        let cursor = 0;
+        while (cursor < text.length) {
+          const index = text.indexOf("账号", cursor);
+          if (index < 0) break;
+          const previous = text.slice(Math.max(0, index - 2), index);
+          if (previous !== "邮箱") positions.push(index);
+          cursor = index + 2;
+        }
+        return positions;
+      }
+
+      function cleanField(value) {
+        return value.replace(/^\s+|\s+$/g, "").replace(/[\r\n\t]+/g, "").trim();
+      }
+
+      function parseChunk(chunk, number) {
+        const passAt = chunk.indexOf("密码", 2);
+        const emailAt = chunk.indexOf("邮箱账号", passAt + 2);
+        const emailPassAt = chunk.indexOf("邮箱密码", emailAt + 4);
+        const mailSiteAt = chunk.indexOf("邮箱地址", emailPassAt + 4);
+        if (passAt < 0 || emailAt < 0 || emailPassAt < 0) {
+          return { error: `第 ${number} 条缺少“密码 / 邮箱账号 / 邮箱密码”字段` };
+        }
+
+        const account = cleanField(chunk.slice(2, passAt));
+        const password = cleanField(chunk.slice(passAt + 2, emailAt));
+        const email = cleanField(chunk.slice(emailAt + 4, emailPassAt)).replace(/\\@/g, "@");
+        const emailPassword = cleanField(chunk.slice(emailPassAt + 4, mailSiteAt < 0 ? chunk.length : mailSiteAt));
+        const mailboxSite = mailSiteAt < 0 ? "" : cleanField(chunk.slice(mailSiteAt + 4));
+
+        const missing = [];
+        if (!account) missing.push("账号");
+        if (!password) missing.push("密码");
+        if (!email) missing.push("邮箱账号");
+        if (!emailPassword) missing.push("邮箱密码");
+        if (missing.length) return { error: `第 ${number} 条缺少：${missing.join("、")}` };
+        if (!email.includes("@")) return { error: `第 ${number} 条邮箱格式异常：${email}` };
+        return { record: { account, password, email, emailPassword, mailboxSite } };
+      }
+
+      function formatRecords(rawText, useAccountAsGameId = true) {
+        const text = normalize(rawText);
+        if (!text) return { records: [], errors: [], output: "" };
+        const starts = accountStarts(text);
+        if (!starts.length) return { records: [], errors: ["没有识别到以“账号”开头的记录"], output: "" };
+        const records = [];
+        const errors = [];
+        starts.forEach((start, index) => {
+          const end = starts[index + 1] ?? text.length;
+          const parsed = parseChunk(text.slice(start, end).trim(), index + 1);
+          if (parsed.record) records.push(parsed.record);
+          else errors.push(parsed.error);
+        });
+        const lines = records.map((record) => {
+          const fields = [record.account, record.password, record.email, record.emailPassword];
+          if (useAccountAsGameId) fields.push(record.account);
+          return fields.join("---");
+        });
+        return { records, errors, output: lines.join("\n") };
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+      }
+
+      function masked(value) {
+        if (value.length <= 2) return "•".repeat(value.length);
+        return value[0] + "•".repeat(Math.min(8, value.length - 2)) + value[value.length - 1];
+      }
+
+      function lineFor(record) {
+        const fields = [record.account, record.password, record.email, record.emailPassword];
+        if (gameIdToggle.checked) fields.push(record.account);
+        return fields.join("---");
+      }
+
+      function render() {
+        current = formatRecords(source.value, gameIdToggle.checked);
+        $("validCount").textContent = String(current.records.length);
+        $("errorCount").textContent = String(current.errors.length);
+        $("domainCount").textContent = String(new Set(current.records.map((r) => r.mailboxSite).filter(Boolean)).size);
+        copyAllBtn.disabled = current.records.length === 0;
+        downloadBtn.disabled = current.records.length === 0;
+
+        if (!source.value.trim()) {
+          results.innerHTML = '<div class="empty"><div><div class="empty-icon">↳</div><strong>等待粘贴数据</strong><span>结果会实时生成，无需点击转换。</span></div></div>';
+          return;
+        }
+        if (!current.records.length && current.errors.length) {
+          results.innerHTML = `<div class="empty"><div><div class="empty-icon">!</div><strong>暂未识别出账号</strong><span>${escapeHtml(current.errors[0])}</span></div></div>`;
+          return;
+        }
+
+        const cards = current.records.map((record, index) => `
+          <div class="record">
+            <span class="index">${String(index + 1).padStart(2, "0")}</span>
+            <div class="record-main">
+              <div class="record-top"><span class="account">${escapeHtml(record.account)}</span><span class="email">${escapeHtml(record.email)}</span></div>
+              <div class="record-line">${escapeHtml(record.account)} · ${escapeHtml(masked(record.password))} · ${escapeHtml(record.mailboxSite || "未提供邮箱站点")}</div>
+            </div>
+            <button class="copy-one" type="button" data-copy-index="${index}" aria-label="复制第 ${index + 1} 条">⧉</button>
+          </div>`).join("");
+        const errorBox = current.errors.length ? `<div class="errors"><strong>有 ${current.errors.length} 条未转换</strong><ul>${current.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul></div>` : "";
+        results.innerHTML = cards + errorBox;
+      }
+
+      function toast(message) {
+        const element = $("toast");
+        element.textContent = message;
+        element.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => element.classList.remove("show"), 1800);
+      }
+
+      async function copyText(text, message) {
+        try {
+          await navigator.clipboard.writeText(text);
+          toast(message);
+        } catch {
+          const helper = document.createElement("textarea");
+          helper.value = text;
+          helper.style.position = "fixed";
+          helper.style.opacity = "0";
+          document.body.appendChild(helper);
+          helper.select();
+          document.execCommand("copy");
+          helper.remove();
+          toast(message);
+        }
+      }
+
+      source.addEventListener("input", render);
+      gameIdToggle.addEventListener("change", render);
+      $("clearBtn").addEventListener("click", () => { source.value = ""; render(); source.focus(); });
+      $("sampleBtn").addEventListener("click", () => {
+        source.value = "账号test10001密码Abc123456邮箱账号mail10001\\@example.com邮箱密码778899邮箱地址example.com\n账号test10002密码Xyz987654邮箱账号mail10002\\@example.com邮箱密码112233邮箱地址example.com";
+        render();
+      });
+      copyAllBtn.addEventListener("click", () => copyText(current.output, `已复制 ${current.records.length} 条账号`));
+      downloadBtn.addEventListener("click", () => {
+        const blob = new Blob([current.output], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `账号整理结果_${new Date().toISOString().slice(0, 10)}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
+        toast("TXT 已下载");
+      });
+      results.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-copy-index]");
+        if (!button) return;
+        const record = current.records[Number(button.dataset.copyIndex)];
+        if (record) copyText(lineFor(record), `已复制账号 ${record.account}`);
+      });
+
+      function registerWebMcp() {
+        const context = document.modelContext;
+        if (!context?.registerTool) return;
+        try {
+          void Promise.resolve(context.registerTool({
+            name: "format_account_records",
+            title: "整理账号数据",
+            description: "解析带有账号、密码、邮箱账号、邮箱密码和邮箱地址标签的发货文本，更新页面并返回一行一个账号的导入格式。",
+            inputSchema: {
+              type: "object",
+              properties: {
+                rawText: { type: "string", description: "需要整理的原始发货文本" },
+                useAccountAsGameId: { type: "boolean", description: "是否将 Steam 账号名追加为游戏ID，默认 true" }
+              },
+              required: ["rawText"],
+              additionalProperties: false
+            },
+            annotations: { readOnlyHint: false, untrustedContentHint: true },
+            execute(input) {
+              if (!input || typeof input.rawText !== "string") throw new TypeError("rawText 必须是字符串");
+              const useGameId = input.useAccountAsGameId !== false;
+              source.value = input.rawText;
+              gameIdToggle.checked = useGameId;
+              render();
+              return { validCount: current.records.length, errorCount: current.errors.length, output: current.output };
+            }
+          })).catch(() => {});
+        } catch {}
+      }
+
+      render();
+      registerWebMcp();
+    })();
+  </script>
+</body>
+</html>
