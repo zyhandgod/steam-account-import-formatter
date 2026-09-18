@@ -132,7 +132,7 @@
             <button class="btn ghost" id="clearBtn" type="button">清空</button>
           </div>
         </div>
-        <textarea class="editor" id="source" spellcheck="false" autocomplete="off" aria-label="原始发货文本" placeholder="支持连续粘贴多条，例如：&#10;&#10;账号test10001密码Abc123456邮箱账号mail10001@example.com邮箱密码778899邮箱地址example.com&#10;账号test10002密码Xyz987654邮箱账号mail10002@example.com邮箱密码112233邮箱地址example.com"></textarea>
+        <textarea class="editor" id="source" spellcheck="false" autocomplete="off" aria-label="原始发货文本" placeholder="支持中文标签格式，或一行一个横杠分隔格式：&#10;&#10;账号test10001密码Abc123456邮箱账号mail10001@example.com邮箱密码778899邮箱地址example.com&#10;test10002----Xyz987654----mail10002@example.com----112233"></textarea>
         <div class="settings">
           <label class="check"><input id="gameIdToggle" type="checkbox" checked />用 Steam 账号名作为游戏ID</label>
           <span class="hint">自动移除邮箱前的 \@ 转义符</span>
@@ -224,22 +224,52 @@
         return { record: { account, password, email, emailPassword, mailboxSite } };
       }
 
+      function parseDelimitedLine(line, number) {
+        const fields = line.split(/-{2,}/).map(cleanField);
+        if (fields.length < 4) {
+          return { error: `第 ${number} 行至少需要“账号 / 密码 / 邮箱 / 邮箱密码”四段` };
+        }
+
+        const [account, password, rawEmail, emailPassword, rawGameId = ""] = fields;
+        const email = rawEmail.replace(/\\@/g, "@");
+        const gameId = ["", "0", "空"].includes(rawGameId) ? "" : rawGameId;
+        const missing = [];
+        if (!account) missing.push("账号");
+        if (!password) missing.push("密码");
+        if (!email) missing.push("邮箱");
+        if (!emailPassword) missing.push("邮箱密码");
+        if (missing.length) return { error: `第 ${number} 行缺少：${missing.join("、")}` };
+        if (!email.includes("@")) return { error: `第 ${number} 行邮箱格式异常：${email}` };
+        return { record: { account, password, email, emailPassword, mailboxSite: "", gameId } };
+      }
+
       function formatRecords(rawText, useAccountAsGameId = true) {
         const text = normalize(rawText);
         if (!text) return { records: [], errors: [], output: "" };
-        const starts = accountStarts(text);
-        if (!starts.length) return { records: [], errors: ["没有识别到以“账号”开头的记录"], output: "" };
         const records = [];
         const errors = [];
-        starts.forEach((start, index) => {
-          const end = starts[index + 1] ?? text.length;
-          const parsed = parseChunk(text.slice(start, end).trim(), index + 1);
-          if (parsed.record) records.push(parsed.record);
-          else errors.push(parsed.error);
-        });
+        const delimitedLines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        const isDelimited = delimitedLines.length > 0 && delimitedLines.every((line) => /-{2,}/.test(line));
+
+        if (isDelimited) {
+          delimitedLines.forEach((line, index) => {
+            const parsed = parseDelimitedLine(line, index + 1);
+            if (parsed.record) records.push(parsed.record);
+            else errors.push(parsed.error);
+          });
+        } else {
+          const starts = accountStarts(text);
+          if (!starts.length) return { records: [], errors: ["没有识别到中文标签格式或横杠分隔格式"], output: "" };
+          starts.forEach((start, index) => {
+            const end = starts[index + 1] ?? text.length;
+            const parsed = parseChunk(text.slice(start, end).trim(), index + 1);
+            if (parsed.record) records.push(parsed.record);
+            else errors.push(parsed.error);
+          });
+        }
         const lines = records.map((record) => {
           const fields = [record.account, record.password, record.email, record.emailPassword];
-          if (useAccountAsGameId) fields.push(record.account);
+          if (useAccountAsGameId) fields.push(record.gameId || record.account);
           return fields.join("---");
         });
         return { records, errors, output: lines.join("\n") };
@@ -256,7 +286,7 @@
 
       function lineFor(record) {
         const fields = [record.account, record.password, record.email, record.emailPassword];
-        if (gameIdToggle.checked) fields.push(record.account);
+        if (gameIdToggle.checked) fields.push(record.gameId || record.account);
         return fields.join("---");
       }
 
@@ -347,7 +377,7 @@
           void Promise.resolve(context.registerTool({
             name: "format_account_records",
             title: "整理账号数据",
-            description: "解析带有账号、密码、邮箱账号、邮箱密码和邮箱地址标签的发货文本，更新页面并返回一行一个账号的导入格式。",
+            description: "解析中文标签格式或由两个以上横杠分隔的账号文本，支持缺少游戏ID的四段格式，并返回一行一个账号的导入格式。",
             inputSchema: {
               type: "object",
               properties: {

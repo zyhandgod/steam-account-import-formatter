@@ -5,6 +5,8 @@ A browser-based tool for converting bulk Steam account data into an import-ready
 ## Features
 
 - Parse multiple account records at once
+- Accept labeled source text and `--` / `---` / `----` delimited rows
+- Accept four-field rows without a game ID
 - Convert escaped email addresses such as `name\@example.com`
 - Generate one import-ready account per line
 - Optionally use the Steam username as the game ID
